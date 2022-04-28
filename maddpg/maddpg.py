@@ -53,58 +53,8 @@ class MADDPG:
         for target_param, param in zip(self.critic_target_network.parameters(), self.critic_network.parameters()):
             target_param.data.copy_((1 - self.args.tau) * target_param.data + self.args.tau * param.data)
 
-    # # update the network
-    # def train(self, transitions, other_agents):
-    #     for key in transitions.keys():
-    #         transitions[key] = torch.tensor(transitions[key], dtype=torch.float32)
-    #     r = transitions['r_%d' % self.agent_id]  # 训练时只需要自己的reward
-    #     o, u, o_next = [], [], []  # 用来装每个agent经验中的各项
-    #     for agent_id in range(self.args.n_agents):
-    #         o.append(transitions['o_%d' % agent_id])
-    #         u.append(transitions['u_%d' % agent_id])
-    #         o_next.append(transitions['o_next_%d' % agent_id])
-    #
-    #     # calculate the target Q value function
-    #     u_next = []
-    #     with torch.no_grad():
-    #         # 得到下一个状态对应的动作
-    #         index = 0
-    #         for agent_id in range(self.args.n_agents):
-    #             if agent_id == self.agent_id:
-    #                 u_next.append(self.actor_target_network(o_next[agent_id]))
-    #             else:
-    #                 # 因为传入的other_agents要比总数少一个，可能中间某个agent是当前agent，不能遍历去选择动作
-    #                 u_next.append(other_agents[index].policy.actor_target_network(o_next[agent_id]))
-    #                 index += 1
-    #         q_next = self.critic_target_network(o_next, u_next).detach()
-    #
-    #         target_q = (r.unsqueeze(1) + self.args.gamma * q_next).detach()
-    #
-    #     # the q loss
-    #     q_value = self.critic_network(o, u)
-    #     critic_loss = (target_q - q_value).pow(2).mean()
-    #
-    #     # the actor loss
-    #     # 重新选择联合动作中当前agent的动作，其他agent的动作不变
-    #     u[self.agent_id] = self.actor_network(o[self.agent_id])
-    #     actor_loss = - self.critic_network(o, u).mean()
-    #     # if self.agent_id == 0:
-    #     #     print('critic_loss is {}, actor_loss is {}'.format(critic_loss, actor_loss))
-    #     # update the network
-    #     self.actor_optim.zero_grad()
-    #     actor_loss.backward()
-    #     self.actor_optim.step()
-    #     self.critic_optim.zero_grad()
-    #     critic_loss.backward()
-    #     self.critic_optim.step()
-    #
-    #     self._soft_update_target_network()
-    #     if self.train_step > 0 and self.train_step % self.args.save_rate == 0:
-    #         self.save_model(self.train_step)
-    #     self.train_step += 1
-
     # update the network
-    def train(self, transitions, other_agents, agent):
+    def train(self, transitions, other_agents):
         for key in transitions.keys():
             transitions[key] = torch.tensor(transitions[key], dtype=torch.float32)
         r = transitions['r_%d' % self.agent_id]  # 训练时只需要自己的reward
@@ -113,6 +63,7 @@ class MADDPG:
             o.append(transitions['o_%d' % agent_id])
             u.append(transitions['u_%d' % agent_id])
             o_next.append(transitions['o_next_%d' % agent_id])
+
         # calculate the target Q value function
         u_next = []
         with torch.no_grad():
@@ -131,14 +82,14 @@ class MADDPG:
 
         # the q loss
         q_value = self.critic_network(o, u)
-        # critic_loss = (r - q_value).pow(2).mean()
         critic_loss = (target_q - q_value).pow(2).mean()
 
         # the actor loss
         # 重新选择联合动作中当前agent的动作，其他agent的动作不变
         u[self.agent_id] = self.actor_network(o[self.agent_id])
         actor_loss = - self.critic_network(o, u).mean()
-
+        # if self.agent_id == 0:
+        #     print('critic_loss is {}, actor_loss is {}'.format(critic_loss, actor_loss))
         # update the network
         self.actor_optim.zero_grad()
         actor_loss.backward()

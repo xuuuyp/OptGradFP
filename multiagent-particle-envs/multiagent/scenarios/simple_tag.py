@@ -52,7 +52,6 @@ class Scenario(BaseScenario):
                 landmark.state.p_pos = np.random.uniform(-0.9, +0.9, world.dim_p)
                 landmark.state.p_vel = np.zeros(world.dim_p)
 
-
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
         if agent.adversary:

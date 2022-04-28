@@ -46,7 +46,7 @@ class Sample:
                 # print('observation', np.reshape(observation,[1,3])[0,:])
                 batch_actions.append(action)
                 # TODO 为什么要加8
-                reward_episode.append((reward + 8) / 8)
+                # reward_episode.append((reward + 8) / 8)
                 # 一个episode结束
                 if done:
                     #   处理回报函数
@@ -122,7 +122,6 @@ class Policy_Net:
     #   依概率选择动作
     def choose_action(self, state):
         action = self.sess.run(self.action, {self.obs: state})
-        # [[[0.37807053]]]
         return action[0]
 
     #   定义训练

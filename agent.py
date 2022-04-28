@@ -23,6 +23,6 @@ class Agent:
             u = np.clip(u, -self.args.high_action, self.args.high_action)
         return u.copy()
 
-    def learn(self, transitions, other_agents, agent):
-        self.policy.train(transitions, other_agents, agent)
+    def learn(self, transitions, other_agents):
+        self.policy.train(transitions, other_agents)
 

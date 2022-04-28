@@ -1,6 +1,4 @@
-from tqdm import tqdm
-from agent import Agent
-from common.replay_buffer import Buffer
+from my_agent import Agent
 import torch
 import os
 import numpy as np
@@ -15,71 +13,103 @@ class Runner:
         self.episode_limit = args.max_episode_len
         self.env = env
         self.agents = self._init_agents()
-        self.buffer = Buffer(args)
-        self.save_path = self.args.save_dir + '/' + self.args.scenario_name
-        if not os.path.exists(self.save_path):
-            os.makedirs(self.save_path)
+        self.gamma = 0.95
 
     def _init_agents(self):
         agents = []
         for i in range(self.args.n_agents):
-            agent = Agent(i, self.args)
+            agent = Agent(i, self.args, self.env)
             agents.append(agent)
         return agents
 
-    def run(self):
-        returns = []
-        for time_step in tqdm(range(self.args.time_steps)):
+    def sample_episodes(self, agent_id):
+        batch_obs = []
+        batch_actions = []
+        batch_rs = []
+        for time_step in range(self.episode_limit):
             # reset the environment
+            # self.env.render()
+            reward_episode = []
             if time_step % self.episode_limit == 0:
                 s = self.env.reset()
+
             u = []
             actions = []
-            with torch.no_grad():
-                for agent_id, agent in enumerate(self.agents):
-                    action = agent.select_action(s[agent_id], self.noise, self.epsilon)
-                    u.append(action)
-                    actions.append(action)
-            for i in range(self.args.n_agents, self.args.n_players):
-                actions.append([0, np.random.rand() * 2 - 1, 0, np.random.rand() * 2 - 1, 0])
+            for i, agent in enumerate(self.agents):
+                action = agent.policy.choose_action([s[i]], self.noise, self.epsilon)
+                u.append(action)
+                actions.append(action)
+            # for i in range(self.args.n_agents, self.args.n_players):
+            #     actions.append([0, np.random.rand() * 2 - 1, 0, np.random.rand() * 2 - 1, 0])
             s_next, r, done, info = self.env.step(actions)
-            self.buffer.store_episode(s[:self.args.n_agents], u, r[:self.args.n_agents], s_next[:self.args.n_agents])
+            reward_episode.append(r[agent_id])
+            reward_sum = 0.0
+            discouted_sum_reward = np.zeros_like(reward_episode)
+            for t in reversed(range(0, len(reward_episode))):
+                reward_sum = reward_sum * self.gamma + reward_episode[t]
+                discouted_sum_reward[t] = reward_sum
+            #   归一化处理
+            discouted_sum_reward = discouted_sum_reward.astype(np.float64)
+            discouted_sum_reward -= np.mean(discouted_sum_reward)
+            if np.std(discouted_sum_reward) != 0:
+                discouted_sum_reward /= np.std(discouted_sum_reward)
+            #   将归一化的数据存储到批回报中
+            for t in range(len(reward_episode)):
+                a = [discouted_sum_reward[t]] * 5
+                batch_rs.append(a)
+            batch_obs.append(s[agent_id].tolist())
+            batch_actions.append(actions[agent_id].tolist())
             s = s_next
-            if self.buffer.current_size >= self.args.batch_size:
-                transitions = self.buffer.sample(self.args.batch_size)
-                for agent in self.agents:
-                    other_agents = self.agents.copy()
-                    other_agents.remove(agent)
-                    agent.learn(transitions, other_agents)
-            if time_step > 0 and time_step % self.args.evaluate_rate == 0:
-                returns.append(self.evaluate())
-                plt.figure()
-                plt.plot(range(len(returns)), returns)
-                plt.xlabel('episode * ' + str(self.args.evaluate_rate / self.episode_limit))
-                plt.ylabel('average returns')
-                plt.savefig(self.save_path + '/plt.png', format='png')
             self.noise = max(0.05, self.noise - 0.0000005)
             self.epsilon = max(0.05, self.noise - 0.0000005)
-            np.save(self.save_path + '/returns.pkl', returns)
+        return batch_obs, batch_actions, batch_rs
 
-    def evaluate(self):
-        returns = []
-        for episode in range(self.args.evaluate_episodes):
-            # reset the environment
-            s = self.env.reset()
-            rewards = 0
-            for time_step in range(self.args.evaluate_episode_len):
-                self.env.render()
-                actions = []
-                with torch.no_grad():
-                    for agent_id, agent in enumerate(self.agents):
-                        action = agent.select_action(s[agent_id], 0, 0)
-                        actions.append(action)
-                for i in range(self.args.n_agents, self.args.n_players):
-                    actions.append([0, np.random.rand() * 2 - 1, 0, np.random.rand() * 2 - 1, 0])
-                s_next, r, done, info = self.env.step(actions)
-                rewards += r[0]
-                s = s_next
-            returns.append(rewards)
-            # print('Returns is', rewards)
-        return sum(returns) / self.args.evaluate_episodes
+    def policy_train(self, agent_id):
+        brain = self.agents[agent_id].policy
+        # 采样1个episode
+        train_obs, train_actions, train_rs = self.sample_episodes(agent_id)
+        brain.train_step(train_obs, train_actions, train_rs)
+
+    def policy_test(self):
+        reward_sum = 0
+        s = self.env.reset()
+        for time_step in range(self.episode_limit):
+            self.env.render()
+            u = []
+            actions = []
+            for i, agent in enumerate(self.agents):
+                action = agent.policy.choose_action([s[i]], self.noise, self.epsilon)
+                u.append(action)
+                actions.append(action)
+            # for i in range(self.args.n_agents, self.args.n_players):
+            #     actions.append([0, np.random.rand() * 2 - 1, 0, np.random.rand() * 2 - 1, 0])
+            s_next, r, done, info = self.env.step(actions)
+            reward_sum += sum(r[:-1]) / (len(r) - 1)
+        return reward_sum
+        # env = self.env
+        # observation = env.reset()[agent_id]
+        # reward_sum = 0.0
+        # env.render()
+        # # 根据策略网络产生一个动作
+        # action = self.agents[agent_id].policy.choose_aciton([observation], 0, 0)
+        # observation_, reward, done, info = env.step(action)
+        # reward_sum += reward
+        # return reward_sum
+
+    def run(self):
+        reward_sum_line = [0]
+        testing_time = [0]
+        for j in range(1000):
+            for agent_id in range(self.args.n_agents-1):
+                for i in range(1000):
+                    self.policy_train(agent_id)
+                    if i % 100 == 0:
+                        reward_sum = self.policy_test()
+                        reward_sum_line.append(reward_sum)
+                        testing_time.append(testing_time[-1] + 1)
+                        plt.figure()
+                        plt.plot(testing_time, reward_sum_line)
+                        plt.xlabel("testing number")
+                        plt.ylabel("score")
+                        plt.show()
+

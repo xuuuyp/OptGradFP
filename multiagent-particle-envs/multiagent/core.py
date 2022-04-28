@@ -1,5 +1,6 @@
 import numpy as np
 
+
 # physical/external base state of all entites
 class EntityState(object):
     def __init__(self):
@@ -7,6 +8,7 @@ class EntityState(object):
         self.p_pos = None
         # physical velocity
         self.p_vel = None
+
 
 # state of agents (including communication and internal/mental state)
 class AgentState(EntityState):
@@ -82,6 +84,7 @@ class Agent(Entity):
         # script behavior to execute
         self.action_callback = None
 
+
 # multi-agent world
 class World(object):
     def __init__(self):
@@ -119,16 +122,18 @@ class World(object):
 
     # update state of the world
     def step(self):
+        # 不存在脚本
         # set actions for scripted agents 
         for agent in self.scripted_agents:
             agent.action = agent.action_callback(agent, self)
         # gather forces applied to entities
         p_force = [None] * len(self.entities)
         # apply agent physical controls
+        # 给action添加噪声
         p_force = self.apply_action_force(p_force)
         # apply environment forces
+        # 基本不变
         p_force = self.apply_environment_force(p_force)
-
         # integrate physical state
         self.integrate_state(p_force)
         # update agent state
@@ -147,8 +152,8 @@ class World(object):
     # gather physical forces acting on entities
     def apply_environment_force(self, p_force):
         # simple (but inefficient) collision response
-        for a,entity_a in enumerate(self.entities):
-            for b,entity_b in enumerate(self.entities):
+        for a, entity_a in enumerate(self.entities):
+            for b, entity_b in enumerate(self.entities):
                 if(b <= a): continue
                 [f_a, f_b] = self.get_collision_force(entity_a, entity_b)
                 if(f_a is not None):
@@ -161,7 +166,7 @@ class World(object):
 
     # integrate physical state
     def integrate_state(self, p_force):
-        for i,entity in enumerate(self.entities):
+        for i, entity in enumerate(self.entities):
             if not entity.movable: continue
             entity.state.p_vel = entity.state.p_vel * (1 - self.damping)
             if (p_force[i] is not None):

@@ -4,6 +4,7 @@ from gym.envs.registration import EnvSpec
 import numpy as np
 from multiagent.multi_discrete import MultiDiscrete
 
+
 # environment for all agents in the multiagent world
 # currently code assumes that no agents will be created/destroyed at runtime!
 class MultiAgentEnv(gym.Env):
@@ -68,7 +69,6 @@ class MultiAgentEnv(gym.Env):
             obs_dim = len(observation_callback(agent, self.world))
             self.observation_space.append(spaces.Box(low=-np.inf, high=+np.inf, shape=(obs_dim,), dtype=np.float32))
             agent.action.c = np.zeros(self.world.dim_c)
-
         # rendering
         self.shared_viewer = shared_viewer
         if self.shared_viewer:
@@ -85,6 +85,7 @@ class MultiAgentEnv(gym.Env):
         self.agents = self.world.policy_agents
         # set action for each agent
         for i, agent in enumerate(self.agents):
+            # action_space都是5
             self._set_action(action_n[i], agent, self.action_space[i])
         # advance world state
         self.world.step()
@@ -144,6 +145,7 @@ class MultiAgentEnv(gym.Env):
     def _set_action(self, action, agent, action_space, time=None):
         agent.action.u = np.zeros(self.world.dim_p)
         agent.action.c = np.zeros(self.world.dim_c)
+
         # process action
         if isinstance(action_space, MultiDiscrete):
             act = []
@@ -170,6 +172,7 @@ class MultiAgentEnv(gym.Env):
                     d = np.argmax(action[0])
                     action[0][:] = 0.0
                     action[0][d] = 1.0
+                # !用的这个
                 if self.discrete_action_space:
                     agent.action.u[0] += action[0][1] - action[0][2]
                     agent.action.u[1] += action[0][3] - action[0][4]
@@ -180,6 +183,7 @@ class MultiAgentEnv(gym.Env):
                 sensitivity = agent.accel
             agent.action.u *= sensitivity
             action = action[1:]
+        # 没用到
         if not agent.silent:
             # communication action
             if self.discrete_action_input:
