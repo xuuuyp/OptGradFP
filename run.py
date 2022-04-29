@@ -35,10 +35,22 @@ class Runner:
 
             u = []
             actions = []
-            for i, agent in enumerate(self.agents):
-                action = agent.policy.choose_action([s[i]], self.noise, self.epsilon)
-                u.append(action)
-                actions.append(action)
+            if agent_id == len(self.agents)-1:
+                for i, agent in enumerate(self.agents):
+                    if i == agent_id:
+                        action = agent.policy.choose_action([s[i]], self.noise, self.epsilon)
+                    else:
+                        action = agent.policy.choose_action([s[i]], 0, 0)
+                    u.append(action)
+                    actions.append(action)
+            else:
+                for i, agent in enumerate(self.agents):
+                    if i == len(self.agents)-1:
+                        action = agent.policy.choose_action([s[i]], 0, 0)
+                    else:
+                        action = agent.policy.choose_action([s[i]], self.noise, self.epsilon)
+                    u.append(action)
+                    actions.append(action)
             # for i in range(self.args.n_agents, self.args.n_players):
             #     actions.append([0, np.random.rand() * 2 - 1, 0, np.random.rand() * 2 - 1, 0])
             s_next, r, done, info = self.env.step(actions)
@@ -78,7 +90,7 @@ class Runner:
             u = []
             actions = []
             for i, agent in enumerate(self.agents):
-                action = agent.policy.choose_action([s[i]], self.noise, self.epsilon)
+                action = agent.policy.choose_action([s[i]], 0, 0)
                 u.append(action)
                 actions.append(action)
             # for i in range(self.args.n_agents, self.args.n_players):
@@ -97,18 +109,17 @@ class Runner:
         # return reward_sum
 
     def run(self):
-        reward_sum_line = [0]
-        testing_time = [0]
+        reward_sum_line = []
         for j in range(1000):
-            for agent_id in range(self.args.n_agents-1):
-                for i in range(1000):
+            for agent_id in range(self.args.n_agents):
+                for i in range(50):
                     self.policy_train(agent_id)
-                    if i % 100 == 0:
+                    if i % 25 == 0:
                         reward_sum = self.policy_test()
+                        print("agent_id:", agent_id, "episode:", j, "step:", i, "reward_sum:", reward_sum)
                         reward_sum_line.append(reward_sum)
-                        testing_time.append(testing_time[-1] + 1)
                         plt.figure()
-                        plt.plot(testing_time, reward_sum_line)
+                        plt.plot(range(len(reward_sum_line)), reward_sum_line)
                         plt.xlabel("testing number")
                         plt.ylabel("score")
                         plt.show()
